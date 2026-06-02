@@ -18,7 +18,7 @@ func TestBuildQueryRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildQueryRequest: %v", err)
 	}
-	if request.Question != "alpha" || request.Retrieval.Mode != falkenvector.RetrievalHybrid || request.Retrieval.TopK != 8 {
+	if request.Question != "alpha" || request.Retrieval.Mode != falkenvector.RetrievalHybrid || request.Retrieval.TopK != TOPK {
 		t.Fatalf("request = %+v", request)
 	}
 }
@@ -44,7 +44,7 @@ func TestBuildAskRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildAskRequest: %v", err)
 	}
-	if !request.Agent || request.Retrieval.Mode != falkenvector.RetrievalHybrid || request.Retrieval.TopK != 8 {
+	if !request.Agent || request.Retrieval.Mode != falkenvector.RetrievalHybrid || request.Retrieval.TopK != TOPK {
 		t.Fatalf("request = %+v", request)
 	}
 }

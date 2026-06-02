@@ -3,8 +3,8 @@ module github.com/smasonuk/falken-vector-tui
 go 1.26.2
 
 require (
-	github.com/smasonuk/earlgray v0.0.0
-	github.com/smasonuk/falken-vector v0.0.0
+	github.com/smasonuk/earlgray v0.1.0
+	github.com/smasonuk/falken-vector v0.1.0
 )
 
 require (
@@ -28,8 +28,8 @@ require (
 	github.com/pkoukk/tiktoken-go v0.1.6 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/smasonuk/falken-core v0.0.0 // indirect
-	github.com/smasonuk/falken-extra v0.0.0 // indirect
+	github.com/smasonuk/falken-core v0.1.0 // indirect
+	github.com/smasonuk/falken-extra v0.1.0 // indirect
 	github.com/tmc/langchaingo v0.1.14 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
@@ -42,11 +42,3 @@ require (
 	modernc.org/sqlite v1.50.1 // indirect
 	mvdan.cc/sh/v3 v3.13.1 // indirect
 )
-
-replace github.com/smasonuk/earlgray => ../earlgray
-
-replace github.com/smasonuk/falken-core => ../falken-core
-
-replace github.com/smasonuk/falken-extra => ../falken-extra
-
-replace github.com/smasonuk/falken-vector => ../falken-vector
