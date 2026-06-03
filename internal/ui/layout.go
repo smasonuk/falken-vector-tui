@@ -12,21 +12,29 @@ import (
 )
 
 type callbacks struct {
-	setScreen        func(app.Screen)
-	update           func(func(app.AppModel) app.AppModel)
-	updatePersistent func(func(app.AppModel) app.AppModel)
-	refreshStatus    func()
-	startDryRun      func()
-	startIngest      func()
-	startSearch      func()
-	startAsk         func()
-	startCompactDry  func()
-	startCompact     func()
-	copySelection    func(string)
-	selectAskSource  func(int)
-	openAskSource    func(int)
-	closeAskSource   func()
-	cancel           func()
+	setScreen                func(app.Screen)
+	update                   func(func(app.AppModel) app.AppModel)
+	updatePersistent         func(func(app.AppModel) app.AppModel)
+	refreshStatus            func()
+	startDryRun              func()
+	startIngest              func()
+	startSearch              func()
+	startAsk                 func()
+	startCompactDry          func()
+	startCompact             func()
+	copySelection            func(string)
+	selectAskSource          func(int)
+	openAskSource            func(int)
+	closeAskSource           func()
+	openAskSourcePicker      func()
+	closeAskSourcePicker     func()
+	applyAskSourcePicker     func()
+	clearAskSourcePicker     func()
+	selectAskSourcePicker    func(string)
+	expandAskSourcePicker    func(string, bool)
+	checkAskSourcePicker     func(string, bool)
+	setAskSourcePickerAttach func(bool)
+	cancel                   func()
 }
 
 func NewRoot(cfg tuiconfig.Config) func() tui.Node {
@@ -113,6 +121,13 @@ func appRoot(directory string, factory app.EngineFactory, preferencesPath string
 					} else {
 						model.Ask.InlineError = result.Err.Error()
 					}
+				case app.OperationAskSources:
+					model.Ask.SourcePickerLoading = false
+					if app.IsNoIndexError(result.Err) {
+						model.Ask.SourcePickerError = app.NoIndexSearchMessage()
+					} else {
+						model.Ask.SourcePickerError = result.Err.Error()
+					}
 				case app.OperationIngest:
 					model.Index.InlineError = result.Err.Error()
 				case app.OperationCompact:
@@ -136,6 +151,8 @@ func appRoot(directory string, factory app.EngineFactory, preferencesPath string
 			case result.Ask != nil:
 				model.Ask = *result.Ask
 				model.Ask.InlineError = ""
+			case result.AskSourcePicker != nil:
+				model.Ask = app.ApplyAskSourcePickerResult(model.Ask, *result.AskSourcePicker)
 			case result.Compact != nil:
 				model.Compact.LastResult = result.Compact
 				model.Compact.InlineError = ""
@@ -282,6 +299,63 @@ func appRoot(directory string, factory app.EngineFactory, preferencesPath string
 				model.Ask.SourceDialogTitle = ""
 				model.Ask.SourceDialogText = ""
 				model.Ask.SourceDialogError = ""
+				return model
+			})
+		},
+		openAskSourcePicker: func() {
+			updateModel(func(model app.AppModel) app.AppModel {
+				model.Ask = app.BeginAskSourcePickerLoad(model.Ask)
+				return model
+			})
+			if err := app.StartAskSourcePicker(runner, factory, directory, model.Ask); err != nil {
+				updateModel(func(model app.AppModel) app.AppModel {
+					model.Ask.SourcePickerLoading = false
+					model.Ask.SourcePickerError = err.Error()
+					return model
+				})
+				return
+			}
+			setBusy(app.OperationAskSources)
+		},
+		closeAskSourcePicker: func() {
+			updateModel(func(model app.AppModel) app.AppModel {
+				model.Ask = app.CloseAskSourcePicker(model.Ask)
+				return model
+			})
+		},
+		applyAskSourcePicker: func() {
+			updateModel(func(model app.AppModel) app.AppModel {
+				model.Ask = app.ApplyAskSourcePickerSelection(model.Ask)
+				return model
+			})
+		},
+		clearAskSourcePicker: func() {
+			updateModel(func(model app.AppModel) app.AppModel {
+				model.Ask = app.ClearAskSourcePickerDraft(model.Ask)
+				return model
+			})
+		},
+		selectAskSourcePicker: func(id string) {
+			updateModel(func(model app.AppModel) app.AppModel {
+				model.Ask = app.SelectAskSourcePickerItem(model.Ask, id)
+				return model
+			})
+		},
+		expandAskSourcePicker: func(id string, expanded bool) {
+			updateModel(func(model app.AppModel) app.AppModel {
+				model.Ask = app.ExpandAskSourcePickerItem(model.Ask, id, expanded)
+				return model
+			})
+		},
+		checkAskSourcePicker: func(id string, checked bool) {
+			updateModel(func(model app.AppModel) app.AppModel {
+				model.Ask = app.CheckAskSourcePickerItem(model.Ask, id, checked)
+				return model
+			})
+		},
+		setAskSourcePickerAttach: func(value bool) {
+			updateModel(func(model app.AppModel) app.AppModel {
+				model.Ask = app.SetAskSourcePickerAttachDocuments(model.Ask, value)
 				return model
 			})
 		},

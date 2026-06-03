@@ -79,7 +79,7 @@ func StartSearch(runner *OperationRunner, factory EngineFactory, model SearchVie
 }
 
 func StartAsk(runner *OperationRunner, factory EngineFactory, directory string, model AskViewModel) error {
-	request, err := BuildAskRequest(model)
+	request, err := BuildAskRequest(directory, model)
 	if err != nil {
 		return err
 	}
@@ -106,6 +106,25 @@ func StartAsk(runner *OperationRunner, factory EngineFactory, directory string, 
 		vm.Warnings = converted.Warnings
 		vm.ToolCalls = converted.ToolCalls
 		return OperationResult{Ask: &vm}
+	})
+}
+
+func StartAskSourcePicker(runner *OperationRunner, factory EngineFactory, directory string, model AskViewModel) error {
+	return runner.Start(OperationAskSources, func(ctx context.Context, sink falkenvector.EventSink) OperationResult {
+		engine, err := factory(sink)
+		if err != nil {
+			return OperationResult{Err: err}
+		}
+		defer engine.Close()
+		documents, err := engine.ListIndexedDocuments(ctx)
+		if IsNoIndexError(err) {
+			return OperationResult{Err: err}
+		}
+		if err != nil {
+			return OperationResult{Err: err}
+		}
+		result := BuildAskSourcePicker(directory, documents, model.SelectedSourceIDs)
+		return OperationResult{AskSourcePicker: &result}
 	})
 }
 

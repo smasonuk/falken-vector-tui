@@ -19,12 +19,13 @@ const (
 type OperationKind string
 
 const (
-	OperationNone    OperationKind = ""
-	OperationStatus  OperationKind = "status"
-	OperationIngest  OperationKind = "ingest"
-	OperationSearch  OperationKind = "search"
-	OperationAsk     OperationKind = "ask"
-	OperationCompact OperationKind = "compact"
+	OperationNone       OperationKind = ""
+	OperationStatus     OperationKind = "status"
+	OperationIngest     OperationKind = "ingest"
+	OperationSearch     OperationKind = "search"
+	OperationAsk        OperationKind = "ask"
+	OperationAskSources OperationKind = "ask_sources"
+	OperationCompact    OperationKind = "compact"
 )
 
 type AppModel struct {
@@ -83,21 +84,33 @@ type SearchResultView struct {
 }
 
 type AskViewModel struct {
-	Question          string
-	Mode              falkenvector.RetrievalMode
-	TopKInput         string
-	Agent             bool
-	Answer            string
-	Sources           []string
-	SourceItems       []AskSourceView
-	SelectedSource    int
-	SourceDialogOpen  bool
-	SourceDialogTitle string
-	SourceDialogText  string
-	SourceDialogError string
-	Warnings          []string
-	ToolCalls         []string
-	InlineError       string
+	Question                            string
+	Mode                                falkenvector.RetrievalMode
+	TopKInput                           string
+	Agent                               bool
+	SelectedSourceIDs                   map[string]bool
+	AttachSelectedDocuments             bool
+	Answer                              string
+	Sources                             []string
+	SourceItems                         []AskSourceView
+	SelectedSource                      int
+	SourceDialogOpen                    bool
+	SourceDialogTitle                   string
+	SourceDialogText                    string
+	SourceDialogError                   string
+	SourcePickerOpen                    bool
+	SourcePickerLoading                 bool
+	SourcePickerError                   string
+	SourcePickerDocuments               []AskSourceDocument
+	SourcePickerRoots                   []AskSourceTreeItem
+	SourcePickerChildren                map[string][]AskSourceTreeItem
+	SourcePickerSelectedID              string
+	SourcePickerExpanded                map[string]bool
+	SourcePickerChecked                 map[string]bool
+	SourcePickerAttachSelectedDocuments bool
+	Warnings                            []string
+	ToolCalls                           []string
+	InlineError                         string
 }
 
 type AskSourceView struct {
@@ -106,6 +119,20 @@ type AskSourceView struct {
 	DisplayPath string
 	StartLine   int
 	EndLine     int
+}
+
+type AskSourceDocument struct {
+	Path          string
+	DisplayPath   string
+	SourceRoot    string
+	SizeBytes     int64
+	TokenEstimate int
+}
+
+type AskSourceTreeItem struct {
+	ID       string
+	Label    string
+	IsBranch bool
 }
 
 type CompactViewModel struct {

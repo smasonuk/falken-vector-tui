@@ -36,7 +36,22 @@ func askScreen(model app.AppModel, cbs callbacks) tui.Node {
 		),
 	)
 	if !model.Ask.SourceDialogOpen {
-		return page
+		if !model.Ask.SourcePickerOpen {
+			return page
+		}
+		return tui.Overlay(
+			page,
+			tui.Dialog(tui.DialogProps{
+				CloseOnEsc: true,
+				OnClose:    cbs.closeAskSourcePicker,
+				Style: tui.Style{
+					Border:    tui.BorderAll,
+					Padding:   tui.All(1),
+					Direction: tui.Column,
+					FlexGrow:  1,
+				},
+			}, askSourcePickerDialog(model, cbs)),
+		)
 	}
 	return tui.Overlay(
 		page,
@@ -56,6 +71,8 @@ func askScreen(model app.AppModel, cbs callbacks) tui.Node {
 func askControls(model app.AppModel, cbs callbacks) tui.Node {
 	return tui.View(tui.Style{Direction: tui.Row, Gap: 2},
 		button("Ask", model.Busy, cbs.startAsk),
+		button("Select sources...", model.Busy, cbs.openAskSourcePicker),
+		tui.Text(app.FormatAskSourceSelectionSummary(model.Ask)),
 	)
 }
 
@@ -131,4 +148,80 @@ func askSourceDialog(model app.AppModel, cbs callbacks) tui.Node {
 			button("Close", false, cbs.closeAskSource),
 		),
 	)
+}
+
+func askSourcePickerDialog(model app.AppModel, cbs callbacks) tui.Node {
+	if model.Ask.SourcePickerLoading {
+		return tui.View(tui.Style{Direction: tui.Column, Gap: 1, FlexGrow: 1},
+			tui.Text("Select sources", tui.WithTextStyle(tui.Style{Bold: true})),
+			tui.Text("Loading indexed sources..."),
+			tui.View(tui.Style{Direction: tui.Row, Gap: 2},
+				button("Cancel", false, cbs.closeAskSourcePicker),
+			),
+		)
+	}
+	if model.Ask.SourcePickerError != "" {
+		return tui.View(tui.Style{Direction: tui.Column, Gap: 1, FlexGrow: 1},
+			tui.Text("Select sources", tui.WithTextStyle(tui.Style{Bold: true})),
+			errorText(model.Ask.SourcePickerError),
+			tui.View(tui.Style{Direction: tui.Row, Gap: 2},
+				button("Close", false, cbs.closeAskSourcePicker),
+			),
+		)
+	}
+
+	roots := askSourceTreeItems(model.Ask.SourcePickerRoots)
+	children := model.Ask.SourcePickerChildren
+	warning := app.AskSourcePickerWarning(model.Ask)
+	applyDisabled := model.Ask.SourcePickerAttachSelectedDocuments && len(app.SourcePickerSelectedDocuments(model.Ask)) == 0
+	nodes := []tui.Node{
+		tui.Text("Select sources", tui.WithTextStyle(tui.Style{Bold: true})),
+		tui.ScrollableTree(tui.ScrollableTreeProps{
+			Roots:      roots,
+			SelectedID: model.Ask.SourcePickerSelectedID,
+			Expanded:   model.Ask.SourcePickerExpanded,
+			Checked:    model.Ask.SourcePickerChecked,
+			GetChildren: func(id string) []tui.ScrollableTreeItem {
+				return askSourceTreeItems(children[id])
+			},
+			OnSelect:         cbs.selectAskSourcePicker,
+			OnExpandedChange: cbs.expandAskSourcePicker,
+			OnCheckedChange:  cbs.checkAskSourcePicker,
+			EmptyText:        "No indexed sources.",
+			ShowFooter:       true,
+			AutoFocus:        true,
+			Style:            tui.Style{FlexGrow: 1, Border: tui.BorderAll, MinHeight: 6},
+			FocusedStyle:     tui.Style{Foreground: tui.ANSIColor(3), Bold: true},
+		}),
+		tui.Checkbox(tui.CheckboxProps{
+			Label:        "Attach selected documents whole",
+			Value:        model.Ask.SourcePickerAttachSelectedDocuments,
+			OnChange:     cbs.setAskSourcePickerAttach,
+			FocusedStyle: tui.Style{Foreground: tui.ANSIColor(3)},
+		}),
+		tui.Text(app.FormatAskSourcePickerStats(model.Ask)),
+	}
+	if warning != "" {
+		nodes = append(nodes, tui.Text(warning, tui.WithTextStyle(tui.Style{Foreground: tui.ANSIColor(3)})))
+	}
+	nodes = append(nodes,
+		tui.View(tui.Style{Direction: tui.Row, Gap: 2},
+			button("Use selected", applyDisabled, cbs.applyAskSourcePicker),
+			button("Clear", false, cbs.clearAskSourcePicker),
+			button("Cancel", false, cbs.closeAskSourcePicker),
+		),
+	)
+	return tui.View(tui.Style{Direction: tui.Column, Gap: 1, FlexGrow: 1}, nodes...)
+}
+
+func askSourceTreeItems(items []app.AskSourceTreeItem) []tui.ScrollableTreeItem {
+	out := make([]tui.ScrollableTreeItem, 0, len(items))
+	for _, item := range items {
+		out = append(out, tui.ScrollableTreeItem{
+			ID:       item.ID,
+			Label:    item.Label,
+			IsBranch: item.IsBranch,
+		})
+	}
+	return out
 }

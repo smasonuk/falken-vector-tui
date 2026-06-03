@@ -13,11 +13,12 @@ var ErrOperationBusy = errors.New("operation already running")
 type OperationResult struct {
 	Kind OperationKind
 
-	Status  *StatusViewModel
-	Ingest  *falkenvector.IngestResult
-	Search  *SearchViewModel
-	Ask     *AskViewModel
-	Compact *falkenvector.CompactResult
+	Status          *StatusViewModel
+	Ingest          *falkenvector.IngestResult
+	Search          *SearchViewModel
+	Ask             *AskViewModel
+	AskSourcePicker *AskSourcePickerResult
+	Compact         *falkenvector.CompactResult
 
 	RefreshStatus bool
 	Err           error

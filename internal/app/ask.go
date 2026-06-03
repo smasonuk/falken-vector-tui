@@ -11,18 +11,31 @@ import (
 	"github.com/smasonuk/falken-vector/pkg/falkenvector"
 )
 
-func BuildAskRequest(model AskViewModel) (falkenvector.AskRequest, error) {
+func BuildAskRequest(directory string, model AskViewModel) (falkenvector.AskRequest, error) {
 	if strings.TrimSpace(model.Question) == "" {
 		return falkenvector.AskRequest{}, errors.New("question is required")
 	}
-	return falkenvector.AskRequest{
+	request := falkenvector.AskRequest{
 		Question: strings.TrimSpace(model.Question),
 		Retrieval: falkenvector.RetrievalOptions{
-			Mode: falkenvector.RetrievalHybrid,
-			TopK: TOPK,
+			Mode:        falkenvector.RetrievalHybrid,
+			TopK:        TOPK,
+			SourceRoots: SelectedAskSourceRoots(model),
 		},
 		Agent: true,
-	}, nil
+	}
+	if model.AttachSelectedDocuments {
+		documents := SelectedAskSourceDocuments(model)
+		if len(documents) == 0 {
+			return falkenvector.AskRequest{}, errors.New("select at least one source to attach documents whole")
+		}
+		attached, err := LoadAskAttachedDocuments(directory, documents)
+		if err != nil {
+			return falkenvector.AskRequest{}, err
+		}
+		request.AttachedDocuments = attached
+	}
+	return request, nil
 }
 
 func AskViewFromAnswer(answer falkenvector.Answer, directory string) AskViewModel {
