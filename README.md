@@ -1,65 +1,226 @@
 # falken-vector-tui
 
-Note: under active development. Alpha quality.
+Note: this tool is under active development. Treat it as alpha-quality software.
 
-`falken-vector-tui` is a small terminal interface for the public
-`github.com/smasonuk/falken-vector` SDK. It lets you index a local directory,
-search the resulting vector store, ask questions against the indexed content,
-inspect status, and compact the vector database without switching back to the
-CLI for the common workflow.
+`falken-vector-tui` is a terminal app for asking questions about a local
+directory. Point it at a folder of source code, notes, Markdown files, or other
+text-like content, build an index, then search or ask questions without leaving
+your terminal.
 
-The TUI operates on the current working directory. Start it from the directory
-that contains the knowledgebase you want to index and query.
+It is the interactive UI for the `github.com/smasonuk/falken-vector` library.
+The library also provides the `falkengo` CLI. The TUI is meant for the common
+daily workflow:
+
+1. Open the tool from the directory you care about.
+2. Index that directory.
+3. Search the index for matching source chunks.
+4. Ask natural-language questions and get answers with cited sources.
+5. Check status or compact the local vector database when needed.
+
+## What It Does
+
+Falken Vector is a local RAG system. RAG means "retrieval-augmented generation":
+before asking a language model to answer, the tool first retrieves relevant
+source material from your own files, then gives that source material to the
+model as context.
+
+The important idea is that the model is not magically reading your whole
+project. Falken Vector builds a local index, searches that index, and sends only
+the selected source chunks to the configured model when you ask for an answer.
+
+Typical uses:
+
+- Find where a behavior, API, decision, or error is described.
+- Ask questions about a codebase or documentation folder.
+- Summarize a topic across many local notes.
+- Inspect the exact files and line ranges behind an answer.
+- Keep a project-local search database refreshed as files change.
+
+## How It Works
+
+When you run `Index this directory`, Falken Vector scans the current directory
+and indexes text-like files. It skips common generated, dependency, hidden, and
+state directories unless you narrow or override discovery with index options.
+
+Indexing has a few steps:
+
+```text
+file on disk
+  -> text chunks
+  -> contextual indexed text
+  -> embedding vectors
+  -> vector database
+  -> SQLite manifest with paths, lines, text, and metadata
+```
+
+A chunk is a smaller piece of a file. Large files are split because embedding
+models and retrieval work better with smaller passages than with entire
+repositories.
+
+An embedding is a list of numbers that represents a piece of text. Text with
+similar meaning tends to produce vectors that are close together. A vector
+database stores those number lists and can quickly answer: "which chunks are
+closest to this question?"
+
+Falken Vector keeps two local stores:
+
+- A vector database for semantic similarity search.
+- A SQLite manifest for file paths, chunk text, line ranges, active/deleted
+  status, and lexical full-text search.
+
+The vector database is not the source of truth for your text. It stores vectors
+plus chunk IDs. The manifest maps those IDs back to the real source text and
+file locations.
+
+## Retrieval Modes
+
+Retrieval is the step that turns a question into matching chunks.
+
+Falken Vector supports three retrieval styles:
+
+- `vector`: embeds the question and searches for semantically similar chunks.
+  This can find relevant text even when the exact words differ.
+- `lexical`: uses SQLite full-text search. This is closer to keyword search and
+  is useful for exact names, errors, symbols, and IDs.
+- `hybrid`: runs both vector and lexical search, then fuses the rankings.
+
+The TUI's Ask and Search screens currently use hybrid retrieval with `TOPK = 16`
+for each request. That means they try to get the best of both worlds: exact
+keyword matches plus semantic matches.
+
+## Agent Mode
+
+The Ask screen uses Falken Vector's agentic ask mode.
+
+In a one-shot RAG flow, the program retrieves chunks once, sends them to the
+model, and returns the model's answer. Agent mode is more flexible: it starts a
+Falken agent with access to search tools such as `search_index`. The agent can
+decide what to search for, make more than one search, and use the retrieved
+source set to produce an answer.
+
+In practice, agent mode is useful when a question is broad or exploratory, such
+as "summarize everything about indexing" or "where is citation validation
+implemented?" The agent may try multiple searches, collect evidence from
+different files, and then cite the sources it used.
+
+Agent answers should include source citations like `[source 1]`. The source
+panel in the TUI lists sources made available to the answer path, including the
+files and line ranges behind cited sources. Open a source to preview those lines
+directly from disk.
+
+The event log shows agent activity at a safe summary level, including tool calls
+and tool results. It does not dump full prompts, retrieved source text, or model
+responses into the log by default.
+
+## What Leaves Your Machine
+
+The index and state files are local, but model calls go wherever your
+`FALKENGO_*` environment variables point.
+
+During indexing:
+
+- Indexed chunk text is sent to the configured `/embeddings` endpoint.
+- The returned vectors are stored locally.
+
+During Ask:
+
+- The question and selected source chunks are sent to the configured
+  `/chat/completions` endpoint.
+- Agent mode may perform several retrieval/tool steps before the final answer.
+
+During Search:
+
+- The TUI uses hybrid retrieval. Vector retrieval needs an embedding call for
+  the question; lexical retrieval is local.
+
+Use a local OpenAI-compatible provider if your content must stay on your
+machine. Do not commit API keys or provider routing headers.
 
 ## Requirements
 
-- Go 1.26.2 or newer, matching the module's `go.mod`.
+- Go 1.26.2 or newer, matching this module's `go.mod`.
 - A terminal that can run an interactive TUI.
-- The same `FALKENGO_*` environment variables required by the
-  `falken-vector` SDK.
-- Embedding and LLM credentials with access to the models configured in the
-  environment.
+- An OpenAI-compatible embeddings endpoint for indexing and hybrid search.
+- An OpenAI-compatible chat completions endpoint for Ask.
+- The required `FALKENGO_*` environment variables exported in the shell that
+  launches the TUI.
 
-## Quick start
+## Quick Start
 
-Build the binary from this module:
+Build the app:
 
 ```bash
 cd /path/to/falken-vector-tui
 make build
 ```
 
-Then run the binary from the directory you want to index:
+Start it from the directory you want to index:
 
 ```bash
-cd /path/to/your/knowledgebase
+cd /path/to/your/project-or-notes
 /path/to/falken-vector-tui/bin/falken-vector-tui
 ```
 
-For a local development run from inside this module:
+The launch directory matters. The TUI treats the current working directory as
+the knowledgebase.
+
+For local development from inside this module:
 
 ```bash
 go run ./cmd/falken-vector-tui
 ```
 
+## First Session Workflow
+
+1. Export the model environment variables shown below.
+2. Start the TUI from your project, docs folder, or notes folder.
+3. Press `3` to open Index.
+4. Run `Dry run` to see what will be scanned.
+5. Run `Index this directory`.
+6. Press `4` to Search for exact topics, symbols, or concepts.
+7. Press `1` to Ask natural-language questions with cited answers.
+8. Use Status and Compact for maintenance.
+
+If the Ask or Search screen says no index exists, go to Index and build one.
+
 ## Configuration
 
-Configuration is read from the same `FALKENGO_*` environment variables as the
-SDK. Example values (this example shows working against the portkey api):
+Falken Vector expects OpenAI-compatible `/embeddings` and `/chat/completions`
+APIs. The TUI reads the same environment variables as the SDK and `falkengo`
+CLI.
+
+Example:
+
+```bash
+export FALKENGO_EMBEDDING_MODEL=text-embedding-3-small
+export FALKENGO_EMBEDDING_MODEL_URL=https://api.example.com/v1
+export FALKENGO_EMBEDDING_MODEL_API_KEY=xxxx
+
+export FALKENGO_LLM_MODEL=gpt-compatible-model
+export FALKENGO_LLM_BASE_URL=https://api.example.com/v1
+export FALKENGO_LLM_API_KEY=xxxx
+```
+
+Provider routing headers can be supplied as JSON objects:
+
+```bash
+export FALKENGO_EMBEDDING_MODEL_HEADERS='{"Header-Name":"value"}'
+export FALKENGO_LLM_HEADERS='{"Header-Name":"value"}'
+```
+
+Portkey-style example:
 
 ```bash
 export FALKENGO_EMBEDDING_MODEL=text-embedding-3-small
 export FALKENGO_EMBEDDING_MODEL_URL=https://portkey.COMPANYNAME.com/v1
 export FALKENGO_EMBEDDING_MODEL_API_KEY=xxxx
-export FALKENGO_LLM_API_KEY=xxxxxx
-export FALKENGO_LLM_BASE_URL=https://portkey.COMPANYNAME.com/v1
-export FALKENGO_LLM_MODEL=gpt-5.2
 export FALKENGO_EMBEDDING_MODEL_HEADERS='{"X-Portkey-Provider":"@openai-aifoundry-swc-001"}'
+
+export FALKENGO_LLM_MODEL=gpt-5.2
+export FALKENGO_LLM_BASE_URL=https://portkey.COMPANYNAME.com/v1
+export FALKENGO_LLM_API_KEY=xxxx
 export FALKENGO_LLM_HEADERS='{"X-Portkey-Provider":"@openai-aifoundry-swc-001"}'
 ```
-
-Do not commit real API keys or provider headers. Keep them in your shell,
-profile, dotenv tooling, or secret manager.
 
 Optional startup flags:
 
@@ -69,17 +230,21 @@ falken-vector-tui --retrieval lexical|vector|hybrid
 falken-vector-tui --top-k <n>
 ```
 
-`--state-dir` overrides the SDK state directory. Relative paths are resolved
-from the directory where the TUI is launched. If no state directory is provided,
-the app uses `FALKENGO_STATE_DIR`; if that is also empty it falls back to
-`.falkengo` under the current working directory.
+`--state-dir` controls where Falken Vector stores its local state. Relative
+paths are resolved from the launch directory.
 
-`--retrieval` and `--top-k` configure SDK defaults. The current Ask and Search
-screens submit hybrid retrieval requests with the app constant `TOPK = 16`.
+State directory selection order:
+
+1. `--state-dir <path>`
+2. `FALKENGO_STATE_DIR`
+3. `.falkengo` under the launch directory
+
+`--retrieval` and `--top-k` set SDK defaults. The current TUI Ask and Search
+screens send explicit hybrid retrieval requests with `TOPK = 16`.
 
 ## Navigation
 
-Use the navigation bar or these keys:
+Use the top navigation bar or these keys:
 
 | Key | Action |
 | --- | --- |
@@ -88,95 +253,144 @@ Use the navigation bar or these keys:
 | `3` | Index |
 | `4` | Search |
 | `5` | Compact |
-| `Esc` | Return to Ask, or cancel the active operation |
+| `Esc` | Return to Ask, close dialogs, or cancel the active operation |
 | `Ctrl-C` | Quit when idle, or cancel the active operation |
 | `q` | Quit when idle |
 
-The event log at the bottom of the screen shows SDK activity such as ingest,
-embedding, retrieval, LLM requests, warnings, and errors. Long-running
-operations can be cancelled with `Esc` or `Ctrl-C`.
+The event log at the bottom of the screen shows indexing, embedding, retrieval,
+LLM, warning, and error events. Long-running operations can be cancelled with
+`Esc` or `Ctrl-C`.
 
 ## Screens
 
 ### Ask
 
-Ask a natural-language question against the indexed directory. Answers appear
-in the main panel. When the SDK returns sources, they appear in the source panel
-with relative file paths and line ranges. Activating a source opens a preview of
-the cited lines from disk.
+Ask a natural-language question about the indexed directory. The answer appears
+in the main panel. Sources appear on the right when the SDK returns them.
 
-Current request defaults:
+Open a source to preview the returned file lines from disk. If the file changed
+after indexing, the source may be stale; re-index to refresh file locations and
+line ranges.
 
-- Retrieval mode: `hybrid`
-- Top K: `16`
+Current request behavior:
+
+- Retrieval mode: hybrid
+- Top K: 16
 - Agent mode: enabled
 
 ### Status
 
-Shows the index status for the current directory, including document counts,
-chunk counts, deleted/error counts, and the last indexed time. If no index is
-found, this screen offers a dry run and an immediate index action.
+Shows whether the current directory has an index, where the state lives, how
+many documents and chunks are indexed, how many are deleted or errored, and when
+the index last changed.
+
+If no index exists, Status offers quick actions to dry-run or index the
+directory.
 
 ### Index
 
-Build or refresh the index for the current directory. The ingest request uses
-`.` as its root, so launch the app from the repository, docs folder, or content
-directory you want indexed.
+Builds or refreshes the index for the current directory. The ingest root is `.`,
+so launch the TUI from the directory you want indexed.
 
 Index options:
 
-- `Extensions`: comma-separated file extensions to include, such as
-  `go,md,txt`. Leave blank to use the SDK default.
-- `Exclude extensions`: comma-separated extensions to skip, such as `tmp,log`.
-- `Exclude directories`: comma-separated directory names to skip, such as
-  `fixtures,dist`.
-- `Chunk size`: number of characters per chunk. Must be greater than zero.
-- `Overlap`: overlap between chunks. Must be at least zero and less than the
-  chunk size.
-- `Chunker`: one of `auto`, `fixed`, `markdown`, `text`, or `code`.
-- `Sync deleted files`: remove files from the index when they no longer exist
-  in the source directory.
+- `Extensions`: file extensions to include, such as `go,md,txt`. Leave blank
+  for SDK defaults.
+- `Exclude extensions`: file extensions to skip, such as `tmp,log`.
+- `Exclude directories`: directory names to skip, such as `fixtures,dist`.
+- `Chunk size`: target characters per chunk. Must be greater than zero.
+- `Overlap`: repeated characters between neighboring chunks. Must be at least
+  zero and smaller than chunk size.
+- `Chunker`: `auto`, `fixed`, `markdown`, `text`, or `code`.
+- `Sync deleted files`: mark missing files as deleted in the index when they
+  were previously indexed from this source root.
 
-Use `Dry run` to inspect what would be scanned before committing a full index.
-Use `Index this directory` to run ingest with embedding concurrency set to `4`.
+Use `Dry run` first when indexing a large or unfamiliar directory. Use
+`Index this directory` to run the actual ingest. The TUI uses embedding
+concurrency `4` for indexing.
 
 ### Search
 
-Runs retrieval against the indexed directory and displays matching chunks. The
-left panel lists scored results with file and line ranges. The right panel shows
-the selected chunk preview and any query plan information returned by the SDK.
+Retrieves matching chunks without asking the chat model to write an answer.
+
+Use Search when you want evidence, not prose. The left panel lists scored
+results with file and line ranges. The right panel previews the selected chunk
+and any query plan information returned by the SDK.
 
 ### Compact
 
-Rebuilds the vector database from active manifest chunks. This is useful after
-deletions, embedding model changes, or maintenance work where inactive chunks
-should be cleaned up.
+Rebuilds the vector database from active manifest chunks.
+
+Compaction is useful after deletions, embedding model changes, interrupted
+maintenance, or when you want to remove inactive vector data. It can also
+recreate a missing vector database from the manifest.
 
 Compact options:
 
 - `Batch size`: number of chunks processed per embedding batch.
-- `Keep backup`: keep a backup while compacting.
+- `Keep backup`: keep a backup of the old vector database while compacting.
 
-Use `Dry run compact` before changing the database. `Compact now` requires a
-second press as confirmation before it runs.
+Use `Dry run compact` to see what would happen. `Compact now` requires a second
+press as confirmation before it changes the database.
 
-## Saved State
+## Local State
 
-TUI preferences are stored as JSON in:
+By default, the TUI stores Falken Vector state inside the directory you launch
+it from:
 
 ```text
-<state-dir>/tui/preferences.json
+.falkengo/
+  manifest.sqlite
+  vecgo-data/
+  locks/
+  tui/preferences.json
 ```
 
-The state directory is chosen in this order:
+The manifest tracks documents, chunks, source paths, line ranges, active/deleted
+state, lexical search data, and vector references. `vecgo-data` stores the
+vector database. `preferences.json` stores TUI settings such as Index and
+Compact options.
 
-1. `--state-dir <path>`
-2. `FALKENGO_STATE_DIR`
-3. `.falkengo` under the launch directory
+Draft questions, answers, search results, event logs, and errors are not saved.
 
-Saved preferences currently include Index screen settings and Compact screen
-settings. Volatile values such as draft questions, search results, answers,
-events, and errors are not persisted.
+## Safety Notes
+
+- The TUI indexes local files, but it does not train the model.
+- Indexing sends chunk text to your configured embedding endpoint.
+- Ask sends retrieved source chunks to your configured chat endpoint.
+- Search uses hybrid retrieval, so it may send the question to the embedding
+  endpoint.
+- The local index can become stale when files move or change; re-index after
+  significant edits.
+- Do not store real API keys in committed shell scripts or README examples.
+
+## Troubleshooting
+
+- `No index found for this directory`: open Index and run `Index this
+  directory`. Confirm you launched the TUI from the intended directory.
+- `question is required`: Ask and Search require non-empty input.
+- Embedding configuration errors: check `FALKENGO_EMBEDDING_MODEL`,
+  `FALKENGO_EMBEDDING_MODEL_URL`, API key, and headers.
+- LLM configuration errors: check `FALKENGO_LLM_MODEL`,
+  `FALKENGO_LLM_BASE_URL`, API key, and headers.
+- Chunk validation errors: make sure chunk size is greater than zero and
+  overlap is smaller than chunk size.
+- Source preview errors: the source file may have moved, been deleted, or
+  changed since indexing. Re-index the directory.
+- Slow indexing: narrow extensions or exclude noisy directories before
+  indexing.
+- Preference warnings: corrupt preferences are non-fatal. Remove
+  `<state-dir>/tui/preferences.json` to return to defaults.
+
+## Relationship To `falkengo`
+
+`falken-vector-tui` wraps the public Falken Vector SDK. The `falkengo` CLI in
+the Falken Vector project exposes more flags and advanced workflows, including
+retrieval evaluation, repair, reset, and detailed agent debug output.
+
+Use the TUI for interactive indexing, search, asking, status, and compaction.
+Use `falkengo` when you need scripting, JSON output, evaluation datasets, or
+advanced debug controls that are not exposed in the TUI yet.
 
 ## Development
 
@@ -206,18 +420,3 @@ Package layout:
 The TUI uses `github.com/smasonuk/earlgray` for terminal UI rendering and
 `github.com/smasonuk/falken-vector/pkg/falkenvector` for indexing, retrieval,
 answering, status, and compaction.
-
-## Troubleshooting
-
-- `No index found for this directory`: open Status or Index and run
-  `Index this directory`. Confirm that you launched the TUI from the directory
-  you intended to index.
-- `question is required`: the Ask and Search screens require non-empty input.
-- Chunk validation errors: make sure chunk size is greater than zero and overlap
-  is smaller than chunk size.
-- Environment/configuration errors: check that all required `FALKENGO_*`
-  variables are exported in the shell that launches the TUI.
-- Source preview errors: a cited file may have moved, been deleted, or changed
-  since the last index. Re-index the directory if source locations are stale.
-- Preference warnings: corrupt preference JSON is non-fatal. Remove
-  `<state-dir>/tui/preferences.json` to return to defaults.
