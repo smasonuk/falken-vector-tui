@@ -124,8 +124,11 @@ During indexing:
 
 During Ask:
 
-- The question and selected source chunks are sent to the configured
+- The question and retrieved source chunks are sent to the configured
   `/chat/completions` endpoint.
+- If you enable whole-document attachment for selected Ask sources, the full
+  text of those selected documents is sent to the chat endpoint instead of
+  retrieved chunks.
 - Agent mode may perform several retrieval/tool steps before the final answer.
 
 During Search:
@@ -272,11 +275,31 @@ Open a source to preview the returned file lines from disk. If the file changed
 after indexing, the source may be stale; re-index to refresh file locations and
 line ranges.
 
+Use `Select sources...` to limit an Ask request to a subset of indexed files or
+directories. The picker shows a filesystem-shaped tree built from indexed
+documents. Selecting a file includes that file. Selecting a directory includes
+all indexed files beneath that directory recursively.
+
+If no sources are selected, Ask uses the full indexed corpus. If sources are
+selected, normal Ask keeps agentic RAG enabled but restricts retrieval and
+agent tools to the selected files/directories. The agent is also told that the
+selected sources are the complete accessible corpus for that answer, so if the
+answer is not supported there it should say it was not found in the selected
+sources.
+
+The source picker also has `Attach selected documents whole`. When enabled, Ask
+reads the selected files from disk and sends the complete selected documents as
+context instead of letting the agent search the index. Directory selections are
+expanded recursively. The dialog shows the selected document count and a rough
+token estimate before you send; large selections warn but are not blocked.
+
 Current request behavior:
 
 - Retrieval mode: hybrid
 - Top K: 16
 - Agent mode: enabled
+- Source filtering: optional, from `Select sources...`
+- Whole-document attachment: optional, only for selected sources
 
 ### Status
 
@@ -358,6 +381,8 @@ Draft questions, answers, search results, event logs, and errors are not saved.
 - The TUI indexes local files, but it does not train the model.
 - Indexing sends chunk text to your configured embedding endpoint.
 - Ask sends retrieved source chunks to your configured chat endpoint.
+- Ask can send complete selected documents when `Attach selected documents
+  whole` is enabled.
 - Search uses hybrid retrieval, so it may send the question to the embedding
   endpoint.
 - The local index can become stale when files move or change; re-index after
@@ -377,6 +402,15 @@ Draft questions, answers, search results, event logs, and errors are not saved.
   overlap is smaller than chunk size.
 - Source preview errors: the source file may have moved, been deleted, or
   changed since indexing. Re-index the directory.
+- Whole-document attachment errors: one of the selected files may have moved,
+  been deleted, or become unreadable since indexing. Re-index or adjust the
+  selected sources.
+- Build errors mentioning missing `falkenvector` symbols such as
+  `IndexedDocument`, `AttachedDocument`, `SourceScopeNote`, or
+  `ListIndexedDocuments` usually mean the TUI is compiling against an older
+  `github.com/smasonuk/falken-vector` module than the one in `go.mod`.
+  Refresh modules with `go mod download` or `go mod tidy`, and avoid relying on
+  a local `go.work` file to hide stale published dependencies.
 - Slow indexing: narrow extensions or exclude noisy directories before
   indexing.
 - Preference warnings: corrupt preferences are non-fatal. Remove
