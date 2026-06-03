@@ -4,7 +4,7 @@ go 1.26.2
 
 require (
 	github.com/smasonuk/earlgray v0.1.0
-	github.com/smasonuk/falken-vector v0.1.0
+	github.com/smasonuk/falken-vector v0.1.1-0.20260603203333-63548d8dfbec
 )
 
 require (
