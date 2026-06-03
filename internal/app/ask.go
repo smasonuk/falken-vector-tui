@@ -11,6 +11,8 @@ import (
 	"github.com/smasonuk/falken-vector/pkg/falkenvector"
 )
 
+const selectedSourcesAgentScopeNote = "The user has restricted this ask to selected sources. search_index only searches those selected sources. Treat the selected sources as the complete accessible corpus for this answer. If the selected sources do not contain enough evidence, say that it was not found in the selected sources rather than implying the full index was searched."
+
 func BuildAskRequest(directory string, model AskViewModel) (falkenvector.AskRequest, error) {
 	if strings.TrimSpace(model.Question) == "" {
 		return falkenvector.AskRequest{}, errors.New("question is required")
@@ -23,6 +25,9 @@ func BuildAskRequest(directory string, model AskViewModel) (falkenvector.AskRequ
 			SourceRoots: SelectedAskSourceRoots(model),
 		},
 		Agent: true,
+	}
+	if len(request.Retrieval.SourceRoots) != 0 && !model.AttachSelectedDocuments {
+		request.SourceScopeNote = selectedSourcesAgentScopeNote
 	}
 	if model.AttachSelectedDocuments {
 		documents := SelectedAskSourceDocuments(model)

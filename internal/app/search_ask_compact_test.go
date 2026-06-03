@@ -56,6 +56,19 @@ func TestBuildAskRequest(t *testing.T) {
 	if len(request.Retrieval.SourceRoots) != 1 || request.Retrieval.SourceRoots[0] != "/repo/docs" {
 		t.Fatalf("source roots = %+v", request.Retrieval.SourceRoots)
 	}
+	if !strings.Contains(request.SourceScopeNote, "selected sources") || !strings.Contains(request.SourceScopeNote, "search_index") {
+		t.Fatalf("SourceScopeNote = %q, want selected-source agent instruction", request.SourceScopeNote)
+	}
+}
+
+func TestBuildAskRequestNoSelectedSourcesDoesNotSetScopeNote(t *testing.T) {
+	request, err := BuildAskRequest("/repo", AskViewModel{Question: "alpha"})
+	if err != nil {
+		t.Fatalf("BuildAskRequest: %v", err)
+	}
+	if request.SourceScopeNote != "" {
+		t.Fatalf("SourceScopeNote = %q, want empty for unfiltered ask", request.SourceScopeNote)
+	}
 }
 
 func TestBuildAskRequestAttachSelectedDocuments(t *testing.T) {
@@ -85,6 +98,9 @@ func TestBuildAskRequestAttachSelectedDocuments(t *testing.T) {
 	}
 	if request.AttachedDocuments[0].Text != "alpha\nbeta\n" || request.AttachedDocuments[0].EndLine != 2 {
 		t.Fatalf("attached doc = %+v", request.AttachedDocuments[0])
+	}
+	if request.SourceScopeNote != "" {
+		t.Fatalf("SourceScopeNote = %q, want empty for attached documents", request.SourceScopeNote)
 	}
 }
 
