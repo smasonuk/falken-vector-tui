@@ -173,6 +173,19 @@ For local development from inside this module:
 go run ./cmd/falken-vector-tui
 ```
 
+## Downloads / Releases
+
+Versioned binaries are published on GitHub Releases when a `v*` tag is pushed.
+Download the archive that matches your OS and CPU architecture, then run the
+included `falken-vector-tui` executable.
+
+To publish a new release:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
 ## First Session Workflow
 
 1. Export the model environment variables shown below.
